@@ -56,7 +56,7 @@ function init() {
           break;
       }
 
-      redrawGeometryAndUpdateUI(gui, scene, controls, function() {
+      redrawGeometryAndUpdateUI(scene, controls, function() {
             var options = {
               size: controls.size,
               height: controls.height,
@@ -81,7 +81,6 @@ function init() {
 
 
 
-  var gui = new dat.GUI();
 
   function render() {
     controls.mesh.rotation.y = step-=0.001

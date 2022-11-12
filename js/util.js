@@ -123,7 +123,7 @@ function addLargeGroundPlane(scene, useTexture) {
 
 
 
-function redrawGeometryAndUpdateUI(gui, scene, controls, geomFunction) {
+function redrawGeometryAndUpdateUI(scene, controls, geomFunction) {
     if (controls.mesh) scene.remove(controls.mesh)
     var changeMat = eval("(" + controls.appliedMaterial + ")")
     if (controls.mesh) {
