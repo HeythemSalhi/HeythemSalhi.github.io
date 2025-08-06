@@ -630,7 +630,7 @@ $WORLD.setupVideoInteraction = function () {
             });
         }
         cube.userData.playTimeoutId = null;
-      }, 3000);
+      }, 3000); 
     } else if (cube.userData.isExpanded) {
       console.log("Contracting video...");
       // If expanded, pause video immediately and contract back to miniature
