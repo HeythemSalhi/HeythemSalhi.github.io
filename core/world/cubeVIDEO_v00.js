@@ -4,6 +4,159 @@
  * @REM add cube with video texture and click interaction , the video is resized to fit the cube
  */
 
+$WORLD.drawCubeVideoLazy = function (
+  myX,
+  myY,
+  myZ,
+  myRotY,
+  myRotX,
+  myVideoPath,
+  zoomFactor
+) {
+  // apply lazy load
+  var canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 614;
+  var ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "bold 98px Arial";
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.fillText("Click to play video", canvas.width / 2, canvas.height / 2 - 50);
+  ctx.fillText("🎬", canvas.width / 2, canvas.height / 2 + 150);
+
+  var videoTexture = new THREE.CanvasTexture(canvas);
+  videoTexture.minFilter = THREE.LinearFilter;
+  videoTexture.magFilter = THREE.LinearFilter;
+  videoTexture.format = THREE.RGBFormat;
+
+  var cubeGeometry = new THREE.BoxGeometry(6, 3.6, 0.01);
+  var cubeMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    map: videoTexture,
+  });
+  var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+  cube.castShadow = true;
+  cube.position.x = myX;
+  cube.position.y = myY;
+  cube.position.z = myZ;
+  cube.rotation.y = myRotY;
+  cube.rotation.x = myRotX;
+
+  cube.userData.lazyVideoLoaded = false;
+
+  $WORLD.scene.add(cube);
+  if (!$WORLD.interactiveObjects) $WORLD.interactiveObjects = [];
+  if (!$WORLD.videoInteractionSetup) {
+    $WORLD.setupVideoInteraction();
+    $WORLD.videoInteractionSetup = true;
+  }
+  $WORLD.interactiveObjects.push(cube);
+
+  // Custom click handler for lazy loading
+  cube.userData.lazyClickHandler = function () {
+    if (cube.userData.lazyVideoLoaded) return;
+    cube.userData.lazyVideoLoaded = true;
+
+    ctx.fillStyle = "#222";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = "bold 48px Arial";
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.fillText("Loading...", canvas.width / 2, canvas.height / 2);
+    videoTexture.needsUpdate = true;
+
+    var video = document.createElement("video");
+    video.src = myVideoPath;
+    video.crossOrigin = "anonymous";
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.volume = 0.5;
+    video.preload = "auto";
+
+    cube.userData.video = video;
+
+    video.addEventListener("loadeddata", function () {
+      function drawVideoFrame() {
+        if (video.readyState >= video.HAVE_CURRENT_DATA) {
+          ctx.fillStyle = "black";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          var vidAspect = video.videoWidth / video.videoHeight;
+          var canvasAspect = canvas.width / canvas.height;
+          var drawWidth, drawHeight, offsetX, offsetY;
+          if (vidAspect > canvasAspect) {
+            drawWidth = canvas.width * zoomFactor;
+            drawHeight = (canvas.width / vidAspect) * zoomFactor;
+            offsetX = (canvas.width - drawWidth) / 2;
+            offsetY = (canvas.height - drawHeight) / 2;
+          } else {
+            drawHeight = canvas.height * zoomFactor;
+            drawWidth = canvas.height * vidAspect * zoomFactor;
+            offsetX = (canvas.width - drawWidth) / 2;
+            offsetY = (canvas.height - drawHeight) / 2;
+          }
+          ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
+          videoTexture.needsUpdate = true;
+        }
+      }
+      function updateCanvas() {
+        if (!video.paused && !video.ended) {
+          drawVideoFrame();
+        }
+        requestAnimationFrame(updateCanvas);
+      }
+      updateCanvas();
+      video.currentTime = 0.5;
+      video.addEventListener("seeked", function () {
+        if (video.paused) drawVideoFrame();
+      });
+      // Play video immediately after load
+      video.muted = false;
+      video.currentTime = 0;
+      video.play();
+    });
+
+    video.load();
+  };
+
+  // Add click event for this cube only
+  cube.userData._lazyListener = function (event) {
+    var rect = $WORLD.renderer.domElement.getBoundingClientRect();
+    var mouse = new THREE.Vector2();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    $WORLD.raycaster.setFromCamera(mouse, $WORLD.camera);
+    var intersects = $WORLD.raycaster.intersectObject(cube);
+    if (intersects.length > 0) {
+      cube.userData.lazyClickHandler();
+    }
+  };
+  $WORLD.renderer.domElement.addEventListener(
+    "click",
+    cube.userData._lazyListener
+  );
+
+  // Remove listener when cube is removed
+  cube.userData._removeLazyListener = function () {
+    $WORLD.renderer.domElement.removeEventListener(
+      "click",
+      cube.userData._lazyListener
+    );
+  };
+
+  return {
+    cube: cube,
+    video: null,
+  };
+};
+/**
+ * @author Heythem Salhi
+ * @adapted_from https://threejs.org/docs
+ * @REM add cube with video texture and click interaction , the video is resized to fit the cube
+ */
+
 $WORLD.drawCubeVideo = function (
   myX,
   myY,
@@ -325,6 +478,225 @@ $WORLD.drawCubeVideoExpandable = function (
 };
 
 // Global helper functions for video animation
+$WORLD.drawCubeVideoExpandableLazy = function (
+  myX,
+  myY,
+  myZ,
+  myRotY,
+  myRotX,
+  myVideoPath,
+  isMinature,
+  zoomFactor,
+  expandedX,
+  expandedY,
+  expandedZ
+) {
+  // Create a placeholder canvas for progress
+  var canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 614;
+  var ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "bold 98px Arial";
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.fillText("Click to play video", canvas.width / 2, canvas.height / 2 - 50);
+  ctx.fillText("🎬", canvas.width / 2, canvas.height / 2 + 150);
+
+  var videoTexture = new THREE.CanvasTexture(canvas);
+  videoTexture.minFilter = THREE.LinearFilter;
+  videoTexture.magFilter = THREE.LinearFilter;
+  videoTexture.format = THREE.RGBFormat;
+
+  var cubeSize =
+    isMinature !== false
+      ? { width: 1.5, height: 0.9, depth: 0.01 }
+      : { width: 6, height: 3.6, depth: 0.01 };
+  var cubeGeometry = new THREE.BoxGeometry(
+    cubeSize.width,
+    cubeSize.height,
+    cubeSize.depth
+  );
+  var cubeMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    map: videoTexture,
+  });
+  var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+  cube.castShadow = true;
+  cube.position.x = myX;
+  cube.position.y = myY;
+  cube.position.z = myZ;
+  cube.rotation.y = myRotY;
+  cube.rotation.x = myRotX;
+
+  cube.userData.isMinature = isMinature !== false;
+  cube.userData.originalPosition = { x: myX, y: myY, z: myZ };
+  cube.userData.originalRotation = { x: myRotX, y: myRotY };
+  cube.userData.originalScale = { x: 1, y: 1, z: 1 };
+  cube.userData.isExpanded = false;
+  cube.userData.expandedPosition =
+    typeof expandedX === "number" &&
+    typeof expandedY === "number" &&
+    typeof expandedZ === "number"
+      ? { x: expandedX, y: expandedY, z: expandedZ }
+      : null;
+  cube.userData.lazyVideoLoaded = false;
+
+  $WORLD.scene.add(cube);
+  if (!$WORLD.interactiveObjects) $WORLD.interactiveObjects = [];
+  if (!$WORLD.videoInteractionSetup) {
+    $WORLD.setupVideoInteraction();
+    $WORLD.videoInteractionSetup = true;
+  }
+  $WORLD.interactiveObjects.push(cube);
+
+  // Custom click handler for lazy loading
+  cube.userData.lazyClickHandler = function () {
+    if (cube.userData.lazyVideoLoaded) return;
+    cube.userData.lazyVideoLoaded = true;
+
+    // Before expanding, contract any other expanded video cubes
+    if ($WORLD.interactiveObjects) {
+      $WORLD.interactiveObjects.forEach(function (obj) {
+        if (
+          obj.userData.isMinature &&
+          obj.userData.isExpanded &&
+          obj !== cube
+        ) {
+          if (obj.userData.video && !obj.userData.video.paused) {
+            obj.userData.video.pause();
+          }
+          $WORLD.contractVideo(obj);
+        }
+      });
+    }
+
+    // Show loading progress
+    ctx.fillStyle = "#222";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = "bold 48px Arial";
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.fillText("Loading...", canvas.width / 2, canvas.height / 2);
+    videoTexture.needsUpdate = true;
+
+    var video = document.createElement("video");
+    video.src = myVideoPath;
+    video.crossOrigin = "anonymous";
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.volume = 0.5;
+    video.preload = "auto";
+
+    cube.userData.video = video;
+
+    // Progress bar
+    video.addEventListener("progress", function () {
+      var buffered = video.buffered.length ? video.buffered.end(0) : 0;
+      var duration = video.duration || 1;
+      var percent = Math.floor((buffered / duration) * 100);
+      ctx.fillStyle = "#222";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.font = "bold 48px Arial";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        "Loading... " + percent + "%",
+        canvas.width / 2,
+        canvas.height / 2
+      );
+      // Draw progress bar
+      ctx.fillStyle = "#0f0";
+      ctx.fillRect(
+        canvas.width / 4,
+        canvas.height / 2 + 40,
+        (canvas.width / 2) * (percent / 100),
+        20
+      );
+      videoTexture.needsUpdate = true;
+    });
+
+    video.addEventListener("loadeddata", function () {
+      // Replace texture with video
+      function drawVideoFrame() {
+        if (video.readyState >= video.HAVE_CURRENT_DATA) {
+          ctx.fillStyle = "black";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          var vidAspect = video.videoWidth / video.videoHeight;
+          var canvasAspect = canvas.width / canvas.height;
+          var drawWidth, drawHeight, offsetX, offsetY;
+          if (vidAspect > canvasAspect) {
+            drawWidth = canvas.width * zoomFactor;
+            drawHeight = (canvas.width / vidAspect) * zoomFactor;
+            offsetX = (canvas.width - drawWidth) / 2;
+            offsetY = (canvas.height - drawHeight) / 2;
+          } else {
+            drawHeight = canvas.height * zoomFactor;
+            drawWidth = canvas.height * vidAspect * zoomFactor;
+            offsetX = (canvas.width - drawWidth) / 2;
+            offsetY = (canvas.height - drawHeight) / 2;
+          }
+          ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
+          videoTexture.needsUpdate = true;
+        }
+      }
+      function updateCanvas() {
+        if (!video.paused && !video.ended) {
+          drawVideoFrame();
+        }
+        requestAnimationFrame(updateCanvas);
+      }
+      updateCanvas();
+      video.currentTime = 0.5;
+      video.addEventListener("seeked", function () {
+        if (video.paused) drawVideoFrame();
+      });
+      // Play video after expansion
+      setTimeout(function () {
+        video.muted = false;
+        video.currentTime = 0;
+        video.play();
+      }, 3000);
+    });
+
+    video.load();
+    // Expand cube
+    $WORLD.expandVideo(cube);
+  };
+
+  // Add click event for this cube only
+  cube.userData._lazyListener = function (event) {
+    // Raycast to check if this cube was clicked
+    var rect = $WORLD.renderer.domElement.getBoundingClientRect();
+    var mouse = new THREE.Vector2();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    $WORLD.raycaster.setFromCamera(mouse, $WORLD.camera);
+    var intersects = $WORLD.raycaster.intersectObject(cube);
+    if (intersects.length > 0) {
+      cube.userData.lazyClickHandler();
+    }
+  };
+  $WORLD.renderer.domElement.addEventListener(
+    "click",
+    cube.userData._lazyListener
+  );
+
+  // Remove listener when cube is removed
+  cube.userData._removeLazyListener = function () {
+    $WORLD.renderer.domElement.removeEventListener(
+      "click",
+      cube.userData._lazyListener
+    );
+  };
+
+  return {
+    cube: cube,
+    video: null,
+  };
+};
 $WORLD.expandVideo = function (cube) {
   console.log("expandVideo called for cube:", cube.userData);
 
@@ -630,7 +1002,7 @@ $WORLD.setupVideoInteraction = function () {
             });
         }
         cube.userData.playTimeoutId = null;
-      }, 3000); 
+      }, 3000);
     } else if (cube.userData.isExpanded) {
       console.log("Contracting video...");
       // If expanded, pause video immediately and contract back to miniature
