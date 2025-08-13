@@ -721,14 +721,17 @@ $WORLD.expandVideo = function (cube) {
 
 $WORLD.contractVideo = function (cube) {
   cube.userData.isExpanded = false;
-
+  // pause video when shrink
+  if (cube.userData.video && !cube.userData.video.paused) {
+    cube.userData.video.pause();
+    console.log("Paused video due to shrink/contract.");
+  }
   $WORLD.animateTransform(
     cube,
     cube.userData.originalPosition,
     cube.userData.originalScale,
     1500
   );
-
   console.log("Video panel returned to original miniature location");
 };
 
